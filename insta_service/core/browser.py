@@ -1,10 +1,12 @@
 import os
+import sys
 import time
 import threading
+import tempfile
 import undetected_chromedriver as uc
 import chromedriver_autoinstaller
 
-from insta_service.config import cfg, CHROME_PROFILES_DIR
+from insta_service.config import cfg, CHROME_PROFILES_DIR, BASE_DIR
 from insta_service.core.proxy_manager import ProxyManager
 from insta_service.utils.logger import log
 
@@ -13,6 +15,16 @@ from insta_service.utils.logger import log
 # Lock으로 순차 실행을 보장한다.
 _chrome_create_lock = threading.Lock()
 _window_index = 0  # 창 배치 순번
+
+
+def _find_chromedriver(cache_dir: str) -> str | None:
+    """캐시 디렉터리에서 chromedriver 실행 파일을 찾는다."""
+    import platform as _plat
+    name = "chromedriver.exe" if _plat.system() == "Windows" else "chromedriver"
+    for root, dirs, files in os.walk(cache_dir):
+        if name in files:
+            return os.path.join(root, name)
+    return None
 
 
 def _get_screen_size():
@@ -85,7 +97,17 @@ def create_chrome_driver(
     - headless: None이면 config.yml 설정 따름
     """
     with _chrome_create_lock:
-        chromedriver_autoinstaller.install()
+        # PyInstaller 번들에서는 chromedriver를 exe 옆 data 폴더에 저장
+        if getattr(sys, 'frozen', False):
+            driver_cache_dir = str(BASE_DIR / "data" / "chromedriver")
+            os.makedirs(driver_cache_dir, exist_ok=True)
+            os.environ["UC_DRIVER_CACHE_DIR"] = driver_cache_dir
+            try:
+                chromedriver_autoinstaller.install(path=driver_cache_dir)
+            except Exception as e:
+                log.warning(f"chromedriver 자동설치 실패 (무시): {e}")
+        else:
+            chromedriver_autoinstaller.install()
 
         options = uc.ChromeOptions()
         options.add_argument("--no-sandbox")
@@ -101,6 +123,8 @@ def create_chrome_driver(
         chrome_bin = cfg["chrome"]["binary_path"]
         if os.path.exists(chrome_bin):
             options.binary_location = chrome_bin
+        else:
+            log.warning(f"Chrome 바이너리를 찾을 수 없습니다: {chrome_bin}")
 
         # 프로필 디렉터리 (영구 유지 — 세션 보존)
         profile_dir = CHROME_PROFILES_DIR / profile_name
@@ -111,7 +135,6 @@ def create_chrome_driver(
         if proxy:
             proxy_str = ProxyManager.format_for_chrome(proxy)
             options.add_argument(f"--proxy-server=http://{proxy_str}")
-            # 인증이 필요한 프록시는 extension으로 처리
             ext_path = ProxyManager.create_proxy_auth_extension(proxy)
             if ext_path:
                 options.add_extension(ext_path)
@@ -135,6 +158,10 @@ def create_chrome_driver(
         }
         if detected_major:
             chrome_kwargs["version_main"] = detected_major
+
+        # PyInstaller에서 driver_executable_path 지정
+        if getattr(sys, 'frozen', False):
+            chrome_kwargs["driver_executable_path"] = _find_chromedriver(driver_cache_dir)
 
         driver = uc.Chrome(**chrome_kwargs)
 

@@ -71,11 +71,16 @@ def is_frozen():
 
 
 def _fix_stdio():
-    """PyInstaller --windowed 모드에서 sys.stdout/stderr가 None인 문제 수정."""
+    """PyInstaller --windowed 모드에서 sys.stdout/stderr가 None인 문제 수정.
+    로그 파일로 리다이렉트하여 디버깅 가능하게 한다."""
+    log_dir = os.path.join(ROOT, "data", "logs")
+    os.makedirs(log_dir, exist_ok=True)
+    log_file = os.path.join(log_dir, "app_output.log")
+    f = open(log_file, "a", encoding="utf-8")
     if sys.stdout is None:
-        sys.stdout = open(os.devnull, "w")
+        sys.stdout = f
     if sys.stderr is None:
-        sys.stderr = open(os.devnull, "w")
+        sys.stderr = f
 
 
 def main():
