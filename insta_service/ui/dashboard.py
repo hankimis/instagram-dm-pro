@@ -2581,6 +2581,7 @@ def _graceful_shutdown():
 
 def run_dashboard():
     """대시보드 서버를 실행한다."""
+    import sys as _sys
     from insta_service.config import cfg, DM_IMAGES_DIR
 
     init_db()
@@ -2592,10 +2593,21 @@ def run_dashboard():
     # DM 이미지 정적 파일 서빙
     app.add_static_files("/dm_images", str(DM_IMAGES_DIR))
 
-    ui.run(
-        title="Instagram Service",
-        host=cfg["server"]["host"],
-        port=cfg["server"]["port"],
-        reload=False,
-        show=True,
-    )
+    # PyInstaller frozen 환경에서는 127.0.0.1로 바인딩 (0.0.0.0은 방화벽 문제 가능)
+    host = cfg["server"]["host"]
+    if getattr(_sys, 'frozen', False) and host == "0.0.0.0":
+        host = "127.0.0.1"
+
+    log.info(f"대시보드 서버 시작: http://{host}:{cfg['server']['port']}")
+    try:
+        ui.run(
+            title="Instagram Service",
+            host=host,
+            port=cfg["server"]["port"],
+            reload=False,
+            show=True,
+        )
+    except Exception as e:
+        log.error(f"대시보드 서버 실행 실패: {e}")
+        import traceback
+        log.error(traceback.format_exc())

@@ -71,7 +71,7 @@ def is_frozen():
 
 
 def _fix_stdio():
-    """PyInstaller --windowed 모드에서 sys.stdout/stderr가 None인 문제 수정.
+    """PyInstaller --windowed 모드에서 sys.stdout/stderr/stdin이 None인 문제 수정.
     로그 파일로 리다이렉트하여 디버깅 가능하게 한다."""
     log_dir = os.path.join(ROOT, "data", "logs")
     os.makedirs(log_dir, exist_ok=True)
@@ -81,12 +81,20 @@ def _fix_stdio():
         sys.stdout = f
     if sys.stderr is None:
         sys.stderr = f
+    # stdin이 None이면 uvicorn/nicegui가 isatty() 호출 시 크래시하므로 devnull로 대체
+    if sys.stdin is None:
+        sys.stdin = open(os.devnull, "r")
 
 
 def main():
     # PyInstaller 번들이면 venv 없이 바로 실행
     if is_frozen():
         _fix_stdio()
+        # Windows frozen 환경에서 asyncio 이벤트 루프 정책 설정
+        # (uvicorn/nicegui가 정상 동작하려면 필요)
+        if platform.system() == "Windows":
+            import asyncio
+            asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
         sys.path.insert(0, ROOT)
         from insta_service.main import main as run
         run()
