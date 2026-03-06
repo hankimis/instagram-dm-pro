@@ -43,6 +43,7 @@ def _detect_chrome_path() -> str:
 
 
 _defaults = {
+    "admin_server_url": "https://insta-service-admin-production.up.railway.app/api",
     "server": {
         "host": "0.0.0.0",
         "port": 8080,
