@@ -14,7 +14,7 @@ def _load_admin_url() -> str:
     """config.yml에서 어드민 서버 URL을 읽는다."""
     try:
         from insta_service.config import cfg
-        return cfg.get("admin_server_url", "http://localhost:9090/api")
+        return cfg.get("admin_server_url", "https://insta-service-admin-production.up.railway.app/api")
     except Exception:
         return "http://localhost:9090/api"
 
