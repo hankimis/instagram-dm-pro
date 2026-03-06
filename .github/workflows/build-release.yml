@@ -23,6 +23,12 @@ jobs:
           pip install -r requirements_service.txt
           pip install pyinstaller
 
+      - name: Set version from tag
+        run: |
+          $version = "${{ github.ref_name }}".TrimStart("v")
+          (Get-Content insta_service/license/validator.py) -replace 'APP_VERSION = ".*"', "APP_VERSION = `"$version`"" | Set-Content insta_service/license/validator.py
+          Write-Host "APP_VERSION set to $version"
+
       - name: Build exe
         run: |
           python -m PyInstaller --name "InstagramDMPro" --onedir --windowed --noconfirm --icon "assets/icon.ico" --add-data "insta_service;insta_service" --add-data "config.yml;." --add-data "proxies.txt;." --add-data "assets;assets" --hidden-import nicegui --hidden-import sqlalchemy --hidden-import cryptography --hidden-import engineio.async_drivers.aiohttp --collect-all nicegui start.py
@@ -48,6 +54,12 @@ jobs:
         run: |
           pip install -r requirements_service.txt
           pip install pyinstaller
+
+      - name: Set version from tag
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          sed -i '' "s/APP_VERSION = \".*\"/APP_VERSION = \"$VERSION\"/" insta_service/license/validator.py
+          echo "APP_VERSION set to $VERSION"
 
       - name: Build app
         run: |
