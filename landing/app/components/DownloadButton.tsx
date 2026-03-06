@@ -21,16 +21,43 @@ const OS_LABELS: Record<OS, string> = {
   unknown: "",
 };
 
-const DOWNLOAD_URLS = {
-  windows: process.env.NEXT_PUBLIC_DOWNLOAD_WIN || "#",
-  mac: process.env.NEXT_PUBLIC_DOWNLOAD_MAC || "#",
+const REPO = "hankimis/instagram-dm-pro";
+
+const FILE_NAMES = {
+  windows: "InstagramDMPro_Windows.zip",
+  mac: "InstagramDMPro_macOS.dmg",
 };
 
 export default function DownloadButton() {
   const [os, setOs] = useState<OS>("unknown");
+  const [version, setVersion] = useState<string>("");
+  const [downloadUrls, setDownloadUrls] = useState({
+    windows: "#",
+    mac: "#",
+  });
 
   useEffect(() => {
     setOs(detectOS());
+
+    fetch(`https://api.github.com/repos/${REPO}/releases/latest`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.tag_name) {
+          setVersion(data.tag_name);
+          const base = `https://github.com/${REPO}/releases/download/${data.tag_name}`;
+          setDownloadUrls({
+            windows: `${base}/${FILE_NAMES.windows}`,
+            mac: `${base}/${FILE_NAMES.mac}`,
+          });
+        }
+      })
+      .catch(() => {
+        // fallback to env vars
+        setDownloadUrls({
+          windows: process.env.NEXT_PUBLIC_DOWNLOAD_WIN || "#",
+          mac: process.env.NEXT_PUBLIC_DOWNLOAD_MAC || "#",
+        });
+      });
   }, []);
 
   if (os === "mobile") {
@@ -58,7 +85,7 @@ export default function DownloadButton() {
 
   return (
     <div className="text-center">
-      <a href={DOWNLOAD_URLS[primaryOS]} className="btn-primary" rel="noopener noreferrer">
+      <a href={downloadUrls[primaryOS]} className="btn-primary" rel="noopener noreferrer">
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
           <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
           <polyline points="7 10 12 15 17 10" />
@@ -67,9 +94,9 @@ export default function DownloadButton() {
         Instagram DM Pro 다운로드
       </a>
       <p className="mt-3 text-sm" style={{ color: "var(--gray-500)" }}>
-        {OS_LABELS[primaryOS]}용 &middot;{" "}
+        {OS_LABELS[primaryOS]}용{version && ` ${version}`} &middot;{" "}
         <a
-          href={DOWNLOAD_URLS[secondaryOS]}
+          href={downloadUrls[secondaryOS]}
           className="underline hover:no-underline"
           style={{ color: "var(--primary)" }}
         >
