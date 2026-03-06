@@ -1,3 +1,5 @@
+import AnimateOnScroll from "./AnimateOnScroll";
+
 const features = [
   {
     icon: (
@@ -45,36 +47,64 @@ const features = [
     description:
       "일일/시간당 발송 한도, 차단 자동 감지, 즉시 중단 기능으로 계정을 안전하게 보호합니다.",
   },
+  {
+    icon: (
+      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <rect x="3" y="3" width="7" height="7" />
+        <rect x="14" y="3" width="7" height="7" />
+        <rect x="3" y="14" width="7" height="7" />
+        <rect x="14" y="14" width="7" height="7" />
+      </svg>
+    ),
+    title: "멀티 템플릿",
+    description:
+      "여러 메시지 템플릿을 등록하고 랜덤으로 발송합니다. 다양한 메시지로 자연스러운 소통을 만드세요.",
+  },
+  {
+    icon: (
+      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <circle cx="12" cy="12" r="10" />
+        <polyline points="12 6 12 12 16 14" />
+      </svg>
+    ),
+    title: "스케줄링",
+    description:
+      "발송 시간, 간격, 릴스 탐색 시간을 세밀하게 설정하세요. 최적의 타이밍에 맞춰 자동 발송됩니다.",
+  },
 ];
 
 export default function Features() {
   return (
     <section className="px-6 py-24" style={{ background: "var(--gray-50)" }}>
       <div className="max-w-6xl mx-auto">
-        <h2 className="text-3xl md:text-4xl font-bold text-center mb-4">
-          왜 Instagram DM Pro인가요?
-        </h2>
-        <p
-          className="text-center text-lg mb-16 max-w-2xl mx-auto"
-          style={{ color: "var(--gray-700)" }}
-        >
-          복잡한 인스타그램 마케팅을 심플하게 자동화합니다
-        </p>
+        <AnimateOnScroll>
+          <h2 className="text-3xl md:text-4xl font-bold text-center mb-4">
+            왜 Instagram DM Pro인가요?
+          </h2>
+          <p
+            className="text-center text-lg mb-16 max-w-2xl mx-auto"
+            style={{ color: "var(--gray-700)" }}
+          >
+            복잡한 인스타그램 마케팅을 심플하게 자동화합니다
+          </p>
+        </AnimateOnScroll>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {features.map((feature, i) => (
-            <div key={i} className="feature-card bg-white">
-              <div
-                className="w-14 h-14 rounded-xl flex items-center justify-center mb-5"
-                style={{ background: "var(--primary-light)", color: "var(--primary)" }}
-              >
-                {feature.icon}
+            <AnimateOnScroll key={i} delay={i * 0.08}>
+              <div className="feature-card bg-white h-full">
+                <div
+                  className="w-14 h-14 rounded-xl flex items-center justify-center mb-5"
+                  style={{ background: "var(--primary-light)", color: "var(--primary)" }}
+                >
+                  {feature.icon}
+                </div>
+                <h3 className="text-xl font-semibold mb-3">{feature.title}</h3>
+                <p style={{ color: "var(--gray-700)" }} className="leading-relaxed">
+                  {feature.description}
+                </p>
               </div>
-              <h3 className="text-xl font-semibold mb-3">{feature.title}</h3>
-              <p style={{ color: "var(--gray-700)" }} className="leading-relaxed">
-                {feature.description}
-              </p>
-            </div>
+            </AnimateOnScroll>
           ))}
         </div>
       </div>

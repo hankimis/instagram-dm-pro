@@ -1,6 +1,11 @@
 import Hero from "./components/Hero";
+import Stats from "./components/Stats";
 import Features from "./components/Features";
+import AppPreview from "./components/AppPreview";
+import HowItWorks from "./components/HowItWorks";
+import FAQ from "./components/FAQ";
 import DownloadButton from "./components/DownloadButton";
+import AnimateOnScroll from "./components/AnimateOnScroll";
 import Footer from "./components/Footer";
 
 export default function Home() {
@@ -21,18 +26,32 @@ export default function Home() {
       {/* Hero */}
       <Hero />
 
+      {/* Stats */}
+      <Stats />
+
       {/* Features */}
       <Features />
 
+      {/* App Preview */}
+      <AppPreview />
+
+      {/* How It Works */}
+      <HowItWorks />
+
+      {/* FAQ */}
+      <FAQ />
+
       {/* Bottom CTA */}
-      <section className="px-6 py-24 text-center">
-        <h2 className="text-3xl md:text-4xl font-bold mb-4">
-          지금 바로 시작하세요
-        </h2>
-        <p className="text-lg mb-10 max-w-xl mx-auto" style={{ color: "var(--gray-700)" }}>
-          무료로 다운로드하고, 인스타그램 마케팅을 자동화하세요.
-        </p>
-        <DownloadButton />
+      <section className="px-6 py-24 text-center" style={{ background: "var(--gray-50)" }}>
+        <AnimateOnScroll>
+          <h2 className="text-3xl md:text-4xl font-bold mb-4">
+            지금 바로 시작하세요
+          </h2>
+          <p className="text-lg mb-10 max-w-xl mx-auto" style={{ color: "var(--gray-700)" }}>
+            무료로 다운로드하고, 인스타그램 마케팅을 자동화하세요.
+          </p>
+          <DownloadButton />
+        </AnimateOnScroll>
       </section>
 
       {/* Footer */}
