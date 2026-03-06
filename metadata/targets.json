@@ -2,12 +2,12 @@
  "signatures": [
   {
    "keyid": "1a771a1e4beb4119d59f9b1e43650c54f798193469de6c9abcf865ca55caa499",
-   "sig": "05bd11dc0b679757e1ca8891f3353e9eab0f1c5757ced559bd2680656b7f0f9757c469e1ed79ed77c8191fcb4d7828c8cf1c8479427848c37cac97152b204d0d"
+   "sig": "4b1d305c128436c320bd07845d57c70bae49210609e3e6a044e4ffb5f77e213f0c4d65309e609b624438b559b63f99e42a3c6de53bd15aca5471d4fa1c17890d"
   }
  ],
  "signed": {
   "_type": "targets",
-  "expires": "2027-03-06T14:16:53Z",
+  "expires": "2027-03-06T14:24:26Z",
   "spec_version": "1.0.31",
   "targets": {
    "InstagramDMPro-1.0.16.tar.gz": {
@@ -45,8 +45,14 @@
      "sha256": "a6a99b60c63ea2a39ef486079f9fae9a22764566bbaa7e415ea5ae3e9e47ccf3"
     },
     "length": 83086067
+   },
+   "InstagramDMPro-1.0.22.tar.gz": {
+    "hashes": {
+     "sha256": "61591618b161329a082a9f3ec39626f0e32a9ec1e24776d7d22b7aa19504716e"
+    },
+    "length": 81662569
    }
   },
-  "version": 9
+  "version": 10
  }
 }
