@@ -73,17 +73,31 @@ def is_frozen():
 def _fix_stdio():
     """PyInstaller --windowed 모드에서 sys.stdout/stderr/stdin이 None인 문제 수정.
     로그 파일로 리다이렉트하여 디버깅 가능하게 한다."""
+    import atexit
     log_dir = os.path.join(ROOT, "data", "logs")
     os.makedirs(log_dir, exist_ok=True)
     log_file = os.path.join(log_dir, "app_output.log")
+    handles = []
     f = open(log_file, "a", encoding="utf-8")
+    handles.append(f)
     if sys.stdout is None:
         sys.stdout = f
     if sys.stderr is None:
         sys.stderr = f
     # stdin이 None이면 uvicorn/nicegui가 isatty() 호출 시 크래시하므로 devnull로 대체
     if sys.stdin is None:
-        sys.stdin = open(os.devnull, "r")
+        devnull = open(os.devnull, "r")
+        handles.append(devnull)
+        sys.stdin = devnull
+
+    def _close_handles():
+        for h in handles:
+            try:
+                h.close()
+            except Exception:
+                pass
+
+    atexit.register(_close_handles)
 
 
 def main():

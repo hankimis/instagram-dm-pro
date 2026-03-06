@@ -757,13 +757,15 @@ def _open_template_modal(existing_tpl: dict | None, reload_fn):
             async def handle_upload(e):
                 try:
                     content = await e.file.read()
-                    fname = e.file.name
-                    save_path = DM_IMAGES_DIR / fname
-                    counter = 1
-                    while save_path.exists():
-                        stem = save_path.stem
-                        save_path = DM_IMAGES_DIR / f"{stem}_{counter}{save_path.suffix}"
-                        counter += 1
+                    import uuid as _uuid
+                    # 경로 탐색 방지: basename으로 디렉터리 제거 + UUID 접두사
+                    safe_name = os.path.basename(e.file.name or "upload")
+                    safe_name = f"{_uuid.uuid4().hex[:8]}_{safe_name}"
+                    save_path = DM_IMAGES_DIR / safe_name
+                    # 최종 경로가 DM_IMAGES_DIR 내부인지 검증
+                    if not save_path.resolve().is_relative_to(DM_IMAGES_DIR.resolve()):
+                        ui.notify("잘못된 파일명입니다.", type="negative")
+                        return
                     save_path.write_bytes(content)
                     _modal_state["image_path"] = str(save_path)
                     show_image_preview()

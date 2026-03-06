@@ -75,6 +75,44 @@ _defaults = {
 }
 
 
+def _validate_config(cfg: dict) -> dict:
+    """설정값의 타입과 범위를 검증하고, 잘못된 값은 기본값으로 대체한다."""
+    # server
+    srv = cfg.get("server", {})
+    port = srv.get("port", _defaults["server"]["port"])
+    if not isinstance(port, int) or not (1 <= port <= 65535):
+        srv["port"] = _defaults["server"]["port"]
+    cfg["server"] = srv
+
+    # crawling — 양수 실수
+    crawl = cfg.get("crawling", {})
+    for key in ("min_delay", "max_delay", "scroll_min_delay", "scroll_max_delay", "page_load_wait"):
+        val = crawl.get(key)
+        if val is not None and (not isinstance(val, (int, float)) or val <= 0):
+            crawl[key] = _defaults["crawling"].get(key, 3.0)
+    if crawl.get("max_delay", 8) < crawl.get("min_delay", 3):
+        crawl["max_delay"] = crawl["min_delay"]
+    cfg["crawling"] = crawl
+
+    # dm — 양수 정수
+    dm = cfg.get("dm", {})
+    for key in ("hourly_limit", "daily_limit_per_account", "min_delay", "max_delay"):
+        val = dm.get(key)
+        if val is not None and (not isinstance(val, (int, float)) or val < 1):
+            dm[key] = _defaults["dm"].get(key, 20)
+    if dm.get("max_delay", 90) < dm.get("min_delay", 30):
+        dm["max_delay"] = dm["min_delay"]
+    cfg["dm"] = dm
+
+    # chrome
+    chrome = cfg.get("chrome", {})
+    if not isinstance(chrome.get("headless"), bool):
+        chrome["headless"] = False
+    cfg["chrome"] = chrome
+
+    return cfg
+
+
 def load_config() -> dict:
     """config.yml을 로드하고, 없으면 기본값으로 생성한다."""
     if CONFIG_PATH.exists():
@@ -91,7 +129,7 @@ def load_config() -> dict:
         for key, val in user_cfg.items():
             if key not in merged:
                 merged[key] = val
-        return merged
+        return _validate_config(merged)
 
     # config.yml이 없으면 기본값으로 생성
     with open(CONFIG_PATH, "w", encoding="utf-8") as f:

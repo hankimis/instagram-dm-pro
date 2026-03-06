@@ -184,9 +184,8 @@ def check_login(driver: uc.Chrome) -> bool:
         # 인스타그램이 아닌 페이지면 인스타로 이동
         if "instagram.com" not in current:
             driver.get("https://www.instagram.com/")
-            time.sleep(3)
+            time.sleep(cfg["crawling"].get("page_load_wait", 4.0))
 
-        # URL에 login이 포함되면 미로그인
         current = driver.current_url
         if "login" in current or "accounts/login" in current:
             return False
@@ -225,7 +224,7 @@ def navigate_to_instagram(driver: uc.Chrome):
     """인스타그램 메인 페이지로 이동한다."""
     try:
         driver.get("https://www.instagram.com/")
-        time.sleep(3)
+        time.sleep(cfg["crawling"].get("page_load_wait", 4.0))
     except Exception as e:
         log.error(f"인스타그램 이동 실패: {e}")
 
