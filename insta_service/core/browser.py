@@ -96,7 +96,10 @@ def create_chrome_driver(
     - proxy: {"ip","port","username","password"} 형태의 프록시 정보
     - headless: None이면 config.yml 설정 따름
     """
-    with _chrome_create_lock:
+    acquired = _chrome_create_lock.acquire(timeout=60)
+    if not acquired:
+        raise RuntimeError("Chrome 생성 락 획득 실패 (60초 타임아웃). 다른 Chrome이 생성 중일 수 있습니다.")
+    try:
         # PyInstaller 번들에서는 chromedriver를 exe 옆 data 폴더에 저장
         if getattr(sys, 'frozen', False):
             driver_cache_dir = str(BASE_DIR / "data" / "chromedriver")
@@ -170,6 +173,8 @@ def create_chrome_driver(
 
         log.info(f"Chrome 브라우저 실행 완료 (프로필: {profile_name})")
         return driver
+    finally:
+        _chrome_create_lock.release()
 
 
 def check_login(driver: uc.Chrome) -> bool:

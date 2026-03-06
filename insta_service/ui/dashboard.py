@@ -853,6 +853,7 @@ def _auto_check_sessions(reload_fn):
 
         def check_session(account=acc):
             account_id = account["id"]
+            driver = None
             try:
                 proxy_data = None
                 if account.get("proxy_id"):
@@ -869,15 +870,19 @@ def _auto_check_sessions(reload_fn):
 
                 if logged_in:
                     _set_state("login_status", True, sub_key=account_id)
-                    close_driver(driver)
                     log.info(f"@{account['username']} 세션 유효 (자동 확인)")
                 else:
                     _set_state("login_status", False, sub_key=account_id)
-                    close_driver(driver)
                     log.info(f"@{account['username']} 세션 만료 - 로그인 필요")
             except Exception as e:
                 log.debug(f"@{account['username']} 세션 확인 실패: {e}")
                 _set_state("login_status", False, sub_key=account_id)
+            finally:
+                if driver:
+                    try:
+                        close_driver(driver)
+                    except Exception:
+                        pass
 
         threading.Thread(target=check_session, daemon=True).start()
 
@@ -937,7 +942,13 @@ def _start_manual_login(acc: dict, reload_fn):
 
         except Exception as e:
             log.error(f"Chrome 실행 오류: {e}")
+            import traceback
+            log.error(traceback.format_exc())
             _set_state("login_status", False, sub_key=aid)
+            try:
+                ui.notify(f"Chrome 실행 실패: {e}", type="negative")
+            except Exception:
+                pass
 
     threading.Thread(target=run, daemon=True).start()
 
