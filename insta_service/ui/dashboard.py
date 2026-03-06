@@ -42,9 +42,6 @@ from insta_service.ui.state import (
 @ui.page("/")
 async def index_page():
     """스플래시 화면: 업데이트 확인 → 라이선스 확인 → 이동."""
-    import platform as _plat
-    from insta_service.core.updater import check_for_update, download_and_apply
-
     ui.query("body").style("background: #1e1b4b")
 
     with ui.column().classes("w-full items-center justify-center min-h-screen"):
@@ -66,72 +63,97 @@ async def index_page():
             prog_box.set_visibility(False)
 
     async def _run():
-        await asyncio.sleep(0.5)
+        try:
+            await asyncio.sleep(0.5)
 
-        # Phase 1: 업데이트 확인 (frozen 빌드에서만)
-        if getattr(sys, "frozen", False):
-            status.text = "업데이트 확인 중..."
-            loop = asyncio.get_event_loop()
-            try:
-                update_info = await asyncio.wait_for(
-                    loop.run_in_executor(None, check_for_update),
-                    timeout=10.0,
-                )
-            except Exception:
-                update_info = None
+            # Phase 1: 업데이트 확인 (frozen 빌드에서만)
+            if getattr(sys, "frozen", False):
+                status.text = "업데이트 확인 중..."
+                try:
+                    import platform as _plat
+                    from insta_service.core.updater import check_for_update, download_and_apply
+                except ImportError as ie:
+                    log.warning(f"업데이트 모듈 로드 실패 (건너뜀): {ie}")
+                    check_for_update = None
 
-            # Phase 2: 다운로드
-            if update_info:
-                version = update_info.get("version", "?")
-                status.text = f"v{version} 다운로드 중..."
-                spinner.set_visibility(False)
-                prog_box.set_visibility(True)
-
-                done_event = asyncio.Event()
-                dl_result = {"ok": False}
-
-                def on_progress(downloaded, total):
-                    if total > 0:
-                        pct = downloaded / total
-                        prog_bar.set_value(pct)
-                        mb_d = downloaded / 1024 / 1024
-                        mb_t = total / 1024 / 1024
-                        prog_detail.set_text(f"{mb_d:.1f} / {mb_t:.1f} MB ({pct*100:.0f}%)")
-
-                def do_download():
+                if check_for_update:
+                    loop = asyncio.get_event_loop()
                     try:
-                        dl_result["ok"] = download_and_apply(update_info, progress_callback=on_progress)
-                    except Exception as e:
-                        log.error(f"자동 업데이트 실패: {e}")
-                    finally:
-                        loop.call_soon_threadsafe(done_event.set)
+                        update_info = await asyncio.wait_for(
+                            loop.run_in_executor(None, check_for_update),
+                            timeout=10.0,
+                        )
+                    except Exception:
+                        update_info = None
 
-                threading.Thread(target=do_download, daemon=True).start()
-                await done_event.wait()
+                    # Phase 2: 다운로드
+                    if update_info:
+                        version = update_info.get("version", "?")
+                        status.text = f"v{version} 다운로드 중..."
+                        spinner.set_visibility(False)
+                        prog_box.set_visibility(True)
 
-                if dl_result["ok"] and _plat.system() == "Windows":
-                    status.text = "업데이트 적용 중... 앱이 재시작됩니다."
-                    prog_bar.set_value(1.0)
-                    await asyncio.sleep(2)
-                    os._exit(0)
-                elif dl_result["ok"]:
-                    status.text = "DMG가 열렸습니다. 앱을 교체 후 재시작하세요."
-                    await asyncio.sleep(3)
+                        done_event = asyncio.Event()
+                        dl_result = {"ok": False}
 
-        # Phase 3: 라이선스 확인
-        status.text = "인증 확인 중..."
-        spinner.set_visibility(True)
-        prog_box.set_visibility(False)
-        await asyncio.sleep(0.3)
+                        def on_progress(downloaded, total):
+                            if total > 0:
+                                pct = downloaded / total
+                                prog_bar.set_value(pct)
+                                mb_d = downloaded / 1024 / 1024
+                                mb_t = total / 1024 / 1024
+                                prog_detail.set_text(f"{mb_d:.1f} / {mb_t:.1f} MB ({pct*100:.0f}%)")
 
-        result = license_validator.verify()
-        if result.get("ok"):
-            _set_state("licensed", True)
-            _set_state("license_info", result)
-            license_validator.start_heartbeat()
-            ui.navigate.to("/dashboard")
-        else:
-            ui.navigate.to("/activate")
+                        def do_download():
+                            try:
+                                dl_result["ok"] = download_and_apply(update_info, progress_callback=on_progress)
+                            except Exception as e:
+                                log.error(f"자동 업데이트 실패: {e}")
+                            finally:
+                                loop.call_soon_threadsafe(done_event.set)
+
+                        threading.Thread(target=do_download, daemon=True).start()
+                        await done_event.wait()
+
+                        if dl_result["ok"] and _plat.system() == "Windows":
+                            status.text = "업데이트 적용 중... 앱이 재시작됩니다."
+                            prog_bar.set_value(1.0)
+                            await asyncio.sleep(2)
+                            os._exit(0)
+                        elif dl_result["ok"]:
+                            status.text = "DMG가 열렸습니다. 앱을 교체 후 재시작하세요."
+                            await asyncio.sleep(3)
+
+            # Phase 3: 라이선스 확인
+            status.text = "인증 확인 중..."
+            spinner.set_visibility(True)
+            prog_box.set_visibility(False)
+            await asyncio.sleep(0.3)
+
+            result = license_validator.verify()
+            if result.get("ok"):
+                _set_state("licensed", True)
+                _set_state("license_info", result)
+                license_validator.start_heartbeat()
+                ui.navigate.to("/dashboard")
+            else:
+                ui.navigate.to("/activate")
+
+        except Exception as e:
+            log.error(f"스플래시 시작 오류: {e}")
+            import traceback
+            log.error(traceback.format_exc())
+            # 에러 발생해도 라이선스 확인으로 진행
+            try:
+                result = license_validator.verify()
+                if result.get("ok"):
+                    _set_state("licensed", True)
+                    _set_state("license_info", result)
+                    ui.navigate.to("/dashboard")
+                else:
+                    ui.navigate.to("/activate")
+            except Exception:
+                ui.navigate.to("/activate")
 
     asyncio.ensure_future(_run())
 

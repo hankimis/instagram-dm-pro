@@ -9,13 +9,14 @@ from datetime import datetime
 import requests
 
 # PyInstaller 번들에서 SSL 인증서 경로를 명시적으로 설정
-import certifi
-
-if getattr(sys, 'frozen', False):
-    os.environ.setdefault("SSL_CERT_FILE", certifi.where())
-    os.environ.setdefault("REQUESTS_CA_BUNDLE", certifi.where())
-
-_SSL_VERIFY = certifi.where()
+try:
+    import certifi
+    _SSL_VERIFY = certifi.where()
+    if getattr(sys, 'frozen', False):
+        os.environ.setdefault("SSL_CERT_FILE", _SSL_VERIFY)
+        os.environ.setdefault("REQUESTS_CA_BUNDLE", _SSL_VERIFY)
+except ImportError:
+    _SSL_VERIFY = True
 
 from insta_service.db import repository as repo
 from insta_service.utils.logger import log
