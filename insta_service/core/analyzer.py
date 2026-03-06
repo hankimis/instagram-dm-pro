@@ -6,7 +6,8 @@ from datetime import datetime
 from selenium.webdriver.common.by import By
 
 from insta_service.config import cfg
-from insta_service.db.models import SessionLocal, User, UserProfile
+from insta_service.db.models import User, UserProfile
+from insta_service.db.repository import get_session
 from insta_service.utils.logger import log
 
 _c = cfg["crawling"]
@@ -133,28 +134,24 @@ class UserAnalyzer:
         return {"success": success, "failed": failed}
 
     def _save_profile(self, username: str, data: dict):
-        session = SessionLocal()
         try:
-            user = session.query(User).filter_by(username=username).first()
-            if not user:
-                return
+            with get_session() as session:
+                user = session.query(User).filter_by(username=username).first()
+                if not user:
+                    return
 
-            profile = session.query(UserProfile).filter_by(user_id=user.id).first()
-            if profile:
-                for k, v in data.items():
-                    setattr(profile, k, v)
-                profile.analyzed_at = datetime.utcnow()
-            else:
-                profile = UserProfile(user_id=user.id, **data)
-                session.add(profile)
+                profile = session.query(UserProfile).filter_by(user_id=user.id).first()
+                if profile:
+                    for k, v in data.items():
+                        setattr(profile, k, v)
+                    profile.analyzed_at = datetime.utcnow()
+                else:
+                    profile = UserProfile(user_id=user.id, **data)
+                    session.add(profile)
 
-            user.is_analyzed = True
-            session.commit()
+                user.is_analyzed = True
         except Exception as e:
-            session.rollback()
             log.error(f"프로필 저장 오류 (@{username}): {e}")
-        finally:
-            session.close()
 
     @staticmethod
     def _parse_count(val: str) -> int:

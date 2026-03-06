@@ -2,6 +2,7 @@ from datetime import datetime
 from contextlib import contextmanager
 
 from sqlalchemy import func
+from sqlalchemy.orm import joinedload
 
 from insta_service.db.models import (
     SessionLocal, User, UserHashtag, UserProfile,
@@ -52,7 +53,7 @@ def get_users(offset: int = 0, limit: int = 100, hashtag: str | None = None,
               sort_by: str = "crawled_at", sort_desc: bool = True,
               search: str | None = None) -> list[dict]:
     with get_session() as s:
-        q = s.query(User)
+        q = s.query(User).options(joinedload(User.profile))
         if hashtag:
             q = q.join(UserHashtag).filter(UserHashtag.hashtag == hashtag)
         if analyzed is not None:
@@ -64,16 +65,15 @@ def get_users(offset: int = 0, limit: int = 100, hashtag: str | None = None,
         col = getattr(User, sort_by, User.crawled_at)
         q = q.order_by(col.desc() if sort_desc else col.asc())
         users = q.offset(offset).limit(limit).all()
-        results = []
-        for u in users:
-            profile = s.query(UserProfile).filter_by(user_id=u.id).first()
-            results.append({
+        return [
+            {
                 "id": u.id, "username": u.username, "first_seen_hashtag": u.first_seen_hashtag,
                 "crawled_at": u.crawled_at.isoformat() if u.crawled_at else None,
                 "is_analyzed": u.is_analyzed, "is_dm_sent": u.is_dm_sent,
-                "display_name": profile.display_name if profile else None,
-            })
-        return results
+                "display_name": u.profile.display_name if u.profile else None,
+            }
+            for u in users
+        ]
 
 
 def mark_users_dm_sent(user_ids: list[int], sent: bool = True):
@@ -342,7 +342,7 @@ def get_dm_history(offset: int = 0, limit: int = 50, status: str | None = None,
                    search: str | None = None) -> list[dict]:
     """DM 발송 이력을 조회한다."""
     with get_session() as s:
-        q = s.query(DmHistory).join(User, DmHistory.user_id == User.id)
+        q = s.query(DmHistory, User.username).join(User, DmHistory.user_id == User.id)
         if status:
             q = q.filter(DmHistory.status == status)
         if search:
@@ -350,17 +350,17 @@ def get_dm_history(offset: int = 0, limit: int = 50, status: str | None = None,
         q = q.order_by(DmHistory.sent_at.desc())
         total = q.count()
         items = q.offset(offset).limit(limit).all()
-        result = []
-        for h in items:
-            user = s.query(User).get(h.user_id)
-            result.append({
+        result = [
+            {
                 "id": h.id,
-                "username": user.username if user else f"(ID:{h.user_id})",
+                "username": uname or f"(ID:{h.user_id})",
                 "message_preview": (h.message_text or "")[:50],
                 "status": h.status,
                 "sent_at": h.sent_at.isoformat() if h.sent_at else None,
                 "sender_account_id": h.sender_account_id,
-            })
+            }
+            for h, uname in items
+        ]
         return result, total
 
 
@@ -390,20 +390,19 @@ def get_failed_dm_targets() -> list[dict]:
     """실패한 DM의 대상 유저 목록 (재시도용). 중복 제거."""
     with get_session() as s:
         failed = (
-            s.query(DmHistory)
-            .filter_by(status="failed")
+            s.query(DmHistory, User.username)
+            .join(User, DmHistory.user_id == User.id)
+            .filter(DmHistory.status == "failed")
             .order_by(DmHistory.sent_at.desc())
             .all()
         )
         seen = set()
         targets = []
-        for h in failed:
+        for h, uname in failed:
             if h.user_id in seen:
                 continue
             seen.add(h.user_id)
-            user = s.query(User).get(h.user_id)
-            if user:
-                targets.append({"user_id": user.id, "username": user.username})
+            targets.append({"user_id": h.user_id, "username": uname})
         return targets
 
 

@@ -49,8 +49,8 @@ def schedule_crawl(run_at: datetime, hashtag: str, target_count: int,
         if on_complete:
             try:
                 on_complete(result)
-            except Exception:
-                pass
+            except Exception as e:
+                log.debug(f"[예약] on_complete 콜백 오류: {e}")
 
     scheduler = get_scheduler()
     sched_job = scheduler.add_job(

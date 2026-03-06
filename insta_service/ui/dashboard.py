@@ -33,6 +33,7 @@ _state = {
     "licensed": False,
     "license_info": None,
     "_session_checked": set(),  # 이번 실행에서 세션 확인 완료된 account_id
+    "_manual_login_pending": set(),  # 수동 로그인 요청 중인 account_id
 }
 
 
@@ -925,9 +926,6 @@ def accounts_page():
             ui.timer(10.0, _check_driver_health)
 
 
-_manual_login_pending = set()  # 수동 로그인 요청 중인 account_id
-
-
 def _auto_check_sessions(reload_fn):
     """프로그램 시작 후 등록된 모든 계정의 세션을 단일 스레드에서 순차 확인한다.
     수동 로그인이 요청된 계정은 건너뛴다."""
@@ -950,7 +948,7 @@ def _auto_check_sessions(reload_fn):
         for account in to_check:
             account_id = account["id"]
             # 수동 로그인이 요청되었으면 건너뜀
-            if account_id in _manual_login_pending:
+            if account_id in _get_state("_manual_login_pending", default=set()):
                 continue
             driver = None
             try:
@@ -967,7 +965,7 @@ def _auto_check_sessions(reload_fn):
                 navigate_to_instagram(driver)
                 logged_in = check_login_safe(driver)
 
-                if account_id in _manual_login_pending:
+                if account_id in _get_state("_manual_login_pending", default=set()):
                     continue
 
                 if logged_in:
@@ -978,7 +976,7 @@ def _auto_check_sessions(reload_fn):
                     log.info(f"@{account['username']} 세션 만료 - 로그인 필요")
             except Exception as e:
                 log.debug(f"@{account['username']} 세션 확인 실패: {e}")
-                if account_id not in _manual_login_pending:
+                if account_id not in _get_state("_manual_login_pending", default=set()):
                     _set_state("login_status", False, sub_key=account_id)
             finally:
                 if driver:
@@ -995,7 +993,8 @@ def _start_manual_login(acc: dict, reload_fn):
     """Chrome을 실행하고, 자동 로그인(세션 캐시) 시도 후 실패 시 수동 로그인을 안내한다."""
     aid = acc["id"]
     # 자동 세션 체크가 이 계정을 건너뛰도록 표시
-    _manual_login_pending.add(aid)
+    with _state_lock:
+        _state["_manual_login_pending"].add(aid)
     ui.notify(f"@{acc['username']} Chrome 실행 중... 잠시 기다려주세요.", type="info")
 
     def run():
@@ -1056,7 +1055,8 @@ def _start_manual_login(acc: dict, reload_fn):
             except Exception:
                 pass
         finally:
-            _manual_login_pending.discard(aid)
+            with _state_lock:
+                _state["_manual_login_pending"].discard(aid)
 
     threading.Thread(target=run, daemon=True).start()
 
@@ -2766,8 +2766,8 @@ def _graceful_shutdown():
             try:
                 crawler.cancel()
                 log.info(f"크롤러 취소: account_id={aid}")
-            except Exception:
-                pass
+            except Exception as e:
+                log.debug(f"크롤러 취소 실패 (account_id={aid}): {e}")
         _state["crawlers"] = {}
 
     # Chrome 드라이버 종료
@@ -2776,8 +2776,8 @@ def _graceful_shutdown():
             try:
                 close_driver(driver)
                 log.info(f"Chrome 종료: account_id={aid}")
-            except Exception:
-                pass
+            except Exception as e:
+                log.debug(f"Chrome 종료 실패 (account_id={aid}): {e}")
         _state["drivers"] = {}
         _state["login_status"] = {}
 
@@ -2785,8 +2785,8 @@ def _graceful_shutdown():
     try:
         from insta_service.core.scheduler import shutdown_scheduler
         shutdown_scheduler()
-    except Exception:
-        pass
+    except Exception as e:
+        log.debug(f"스케줄러 종료 실패: {e}")
 
     log.info("그레이스풀 셔다운 완료")
 
@@ -2805,7 +2805,9 @@ def run_dashboard():
     # 정적 파일 서빙
     app.add_static_files("/dm_images", str(DM_IMAGES_DIR))
     from insta_service.config import BASE_DIR as _base
-    app.add_static_files("/assets", str(_base / "assets"))
+    _assets_dir = _base / "assets"
+    if _assets_dir.exists():
+        app.add_static_files("/assets", str(_assets_dir))
 
     # PyInstaller frozen 환경에서는 127.0.0.1로 바인딩 (0.0.0.0은 방화벽 문제 가능)
     host = cfg["server"]["host"]

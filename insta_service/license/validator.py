@@ -9,10 +9,13 @@ from datetime import datetime
 import requests
 
 # PyInstaller 번들에서 SSL 인증서 경로를 명시적으로 설정
+import certifi
+
 if getattr(sys, 'frozen', False):
-    import certifi
     os.environ.setdefault("SSL_CERT_FILE", certifi.where())
     os.environ.setdefault("REQUESTS_CA_BUNDLE", certifi.where())
+
+_SSL_VERIFY = certifi.where()
 
 from insta_service.db import repository as repo
 from insta_service.utils.logger import log
@@ -55,7 +58,7 @@ class LicenseValidator:
                     "machine_id": self._get_machine_id(),
                 },
                 timeout=15,
-                verify=True,
+                verify=_SSL_VERIFY,
             )
             try:
                 data = resp.json()
@@ -117,7 +120,7 @@ class LicenseValidator:
                     "machine_id": self._get_machine_id(),
                 },
                 timeout=5,
-                verify=False,  # PyInstaller SSL 인증서 문제 방지
+                verify=_SSL_VERIFY,
             )
             if resp.status_code == 200:
                 try:
@@ -161,8 +164,8 @@ class LicenseValidator:
                 if data.get("update_available"):
                     log.info(f"새 버전 {data['latest_version']} 사용 가능")
                     return data
-        except Exception:
-            pass
+        except Exception as e:
+            log.debug(f"버전 확인 실패: {e}")
         return None
 
     def start_heartbeat(self):
@@ -187,17 +190,18 @@ class LicenseValidator:
                     )
                     repo.update_heartbeat()
                     log.debug("하트비트 전송 완료")
-                except Exception:
-                    pass
+                except Exception as e:
+                    log.debug(f"하트비트 전송 실패: {e}")
                 time.sleep(86400)  # 24시간
 
         self._heartbeat_thread = threading.Thread(target=_heartbeat_loop, daemon=True)
         self._heartbeat_thread.start()
 
     def _activate_no_ssl(self, license_key: str, url: str) -> dict:
-        """SSL 검증 없이 라이선스 활성화를 재시도한다."""
+        """SSL 검증 실패 시 최후 수단으로 SSL 검증 없이 재시도한다."""
         import urllib3
         urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+        log.warning("SSL 검증을 비활성화하고 재시도합니다. 보안이 저하될 수 있습니다.")
         try:
             resp = requests.post(
                 url,

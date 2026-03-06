@@ -1,8 +1,11 @@
+import logging
 from datetime import datetime
 from sqlalchemy import (
-    create_engine, Column, Integer, String, Boolean, Text, DateTime, ForeignKey,
+    create_engine, Column, Integer, String, Boolean, Text, DateTime, ForeignKey, Index,
 )
 from sqlalchemy.orm import declarative_base, relationship, sessionmaker
+
+log = logging.getLogger(__name__)
 
 from insta_service.config import DB_PATH
 
@@ -98,7 +101,7 @@ class CrawlJob(Base):
     hashtag = Column(String, nullable=False)
     target_count = Column(Integer)
     collected_count = Column(Integer, default=0)
-    status = Column(String, default="pending")  # pending/running/completed/failed/cancelled
+    status = Column(String, default="pending", index=True)  # pending/running/completed/failed/cancelled
     account_id = Column(Integer, ForeignKey("instagram_accounts.id"), nullable=True)
     scheduled_at = Column(DateTime)
     started_at = Column(DateTime)
@@ -121,12 +124,12 @@ class DmHistory(Base):
     __tablename__ = "dm_history"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     sender_account_id = Column(Integer, ForeignKey("instagram_accounts.id"), nullable=False)
     template_id = Column(Integer, ForeignKey("dm_templates.id"), nullable=True)
     message_text = Column(Text)
     sent_at = Column(DateTime, default=datetime.utcnow)
-    status = Column(String, default="pending")  # pending/sent/failed/blocked
+    status = Column(String, default="pending", index=True)  # pending/sent/failed/blocked
     error_message = Column(Text)
 
     user = relationship("User", back_populates="dm_history")
@@ -170,17 +173,31 @@ def init_db():
     _migrate_user_profiles()
 
 
-def _migrate_license_info():
-    """license_info 테이블에 신규 컬럼이 없으면 ALTER TABLE로 추가."""
+def _add_columns_if_missing(table: str, columns: dict[str, str]):
+    """테이블에 누락된 컬럼을 ALTER TABLE로 추가한다."""
     import sqlite3
     from insta_service.config import DB_PATH
 
     conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    cursor.execute("PRAGMA table_info(license_info)")
-    existing = {row[1] for row in cursor.fetchall()}
+    try:
+        cursor = conn.cursor()
+        cursor.execute(f"PRAGMA table_info({table})")
+        existing = {row[1] for row in cursor.fetchall()}
 
-    migrations = {
+        for col, col_type in columns.items():
+            if col not in existing:
+                cursor.execute(f"ALTER TABLE {table} ADD COLUMN {col} {col_type}")
+                log.debug(f"마이그레이션: {table}.{col} 컬럼 추가")
+
+        conn.commit()
+    except Exception as e:
+        log.error(f"마이그레이션 실패 ({table}): {e}")
+    finally:
+        conn.close()
+
+
+def _migrate_license_info():
+    _add_columns_if_missing("license_info", {
         "plan": 'VARCHAR DEFAULT "basic"',
         "max_crawl_accounts": "INTEGER DEFAULT 1",
         "max_dm_accounts": "INTEGER DEFAULT 1",
@@ -189,61 +206,16 @@ def _migrate_license_info():
         "can_analyze": "BOOLEAN DEFAULT 0",
         "can_export": "BOOLEAN DEFAULT 0",
         "last_heartbeat": "DATETIME",
-    }
-    for col, col_type in migrations.items():
-        if col not in existing:
-            cursor.execute(f"ALTER TABLE license_info ADD COLUMN {col} {col_type}")
-
-    conn.commit()
-    conn.close()
+    })
 
 
 def _migrate_crawl_jobs():
-    """crawl_jobs 테이블에 error_message 컬럼이 없으면 추가."""
-    import sqlite3
-    from insta_service.config import DB_PATH
-
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    cursor.execute("PRAGMA table_info(crawl_jobs)")
-    existing = {row[1] for row in cursor.fetchall()}
-
-    if "error_message" not in existing:
-        cursor.execute("ALTER TABLE crawl_jobs ADD COLUMN error_message TEXT")
-
-    conn.commit()
-    conn.close()
+    _add_columns_if_missing("crawl_jobs", {"error_message": "TEXT"})
 
 
 def _migrate_user_profiles():
-    """user_profiles 테이블에 display_name 컬럼이 없으면 추가."""
-    import sqlite3
-    from insta_service.config import DB_PATH
-
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    cursor.execute("PRAGMA table_info(user_profiles)")
-    existing = {row[1] for row in cursor.fetchall()}
-
-    if "display_name" not in existing:
-        cursor.execute("ALTER TABLE user_profiles ADD COLUMN display_name VARCHAR")
-
-    conn.commit()
-    conn.close()
+    _add_columns_if_missing("user_profiles", {"display_name": "VARCHAR"})
 
 
 def _migrate_dm_templates():
-    """dm_templates 테이블에 image_path 컬럼이 없으면 추가."""
-    import sqlite3
-    from insta_service.config import DB_PATH
-
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    cursor.execute("PRAGMA table_info(dm_templates)")
-    existing = {row[1] for row in cursor.fetchall()}
-
-    if "image_path" not in existing:
-        cursor.execute("ALTER TABLE dm_templates ADD COLUMN image_path VARCHAR")
-
-    conn.commit()
-    conn.close()
+    _add_columns_if_missing("dm_templates", {"image_path": "VARCHAR"})

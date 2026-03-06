@@ -1,8 +1,10 @@
 import pandas as pd
-from pathlib import Path
 from datetime import datetime
 
-from insta_service.db.models import SessionLocal, User, UserHashtag, UserProfile
+from sqlalchemy.orm import joinedload
+
+from insta_service.db.models import User, UserHashtag
+from insta_service.db.repository import get_session
 from insta_service.config import DATA_DIR
 from insta_service.utils.logger import log
 
@@ -10,14 +12,18 @@ EXPORT_DIR = DATA_DIR / "exports"
 EXPORT_DIR.mkdir(exist_ok=True)
 
 
+def _query_users(session, hashtag: str | None = None):
+    """내보내기용 유저 쿼리 (공통)."""
+    q = session.query(User).options(joinedload(User.profile), joinedload(User.hashtags))
+    if hashtag:
+        q = q.join(UserHashtag).filter(UserHashtag.hashtag == hashtag)
+    return q.all()
+
+
 def export_users_excel(hashtag: str | None = None, include_profile: bool = True) -> str:
     """수집된 유저 데이터를 Excel로 내보낸다. 파일 경로를 반환."""
-    session = SessionLocal()
-    try:
-        q = session.query(User)
-        if hashtag:
-            q = q.join(UserHashtag).filter(UserHashtag.hashtag == hashtag)
-        users = q.all()
+    with get_session() as session:
+        users = _query_users(session, hashtag)
 
         rows = []
         for u in users:
@@ -50,26 +56,20 @@ def export_users_excel(hashtag: str | None = None, include_profile: bool = True)
         log.info(f"Excel 내보내기 완료: {filename} ({len(rows)}명)")
         return str(filepath)
 
-    finally:
-        session.close()
-
 
 def export_users_csv(hashtag: str | None = None) -> str:
     """수집된 유저 데이터를 CSV로 내보낸다."""
-    session = SessionLocal()
-    try:
-        q = session.query(User)
-        if hashtag:
-            q = q.join(UserHashtag).filter(UserHashtag.hashtag == hashtag)
-        users = q.all()
+    with get_session() as session:
+        users = _query_users(session, hashtag)
 
-        rows = []
-        for u in users:
-            rows.append({
+        rows = [
+            {
                 "username": u.username,
                 "hashtag": u.first_seen_hashtag,
                 "crawled_at": u.crawled_at.strftime("%Y-%m-%d") if u.crawled_at else "",
-            })
+            }
+            for u in users
+        ]
 
         df = pd.DataFrame(rows)
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -78,6 +78,3 @@ def export_users_csv(hashtag: str | None = None) -> str:
         df.to_csv(filepath, index=False, encoding="utf-8-sig")
         log.info(f"CSV 내보내기 완료: {filename} ({len(rows)}명)")
         return str(filepath)
-
-    finally:
-        session.close()

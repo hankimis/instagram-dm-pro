@@ -149,8 +149,8 @@ def create_chrome_driver(
             ver = chromedriver_autoinstaller.get_chrome_version()
             detected_major = int(ver.split(".")[0]) if ver else None
             log.info(f"Chrome 버전 감지: {ver}")
-        except Exception:
-            pass
+        except Exception as e:
+            log.debug(f"Chrome 버전 감지 실패: {e}")
 
         use_headless = headless if headless is not None else cfg["chrome"]["headless"]
 
