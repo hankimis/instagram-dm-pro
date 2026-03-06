@@ -17,19 +17,24 @@ _window_index = 0  # 창 배치 순번
 
 def _get_screen_size():
     """화면 해상도를 가져온다."""
+    import platform as _plat
     try:
-        import subprocess
-        result = subprocess.run(
-            ["osascript", "-e", 'tell application "Finder" to get bounds of window of desktop'],
-            capture_output=True, text=True, timeout=5
-        )
-        if result.returncode == 0:
-            parts = result.stdout.strip().split(", ")
-            if len(parts) == 4:
-                return int(parts[2]), int(parts[3])
+        if _plat.system() == "Windows":
+            import ctypes
+            user32 = ctypes.windll.user32
+            return user32.GetSystemMetrics(0), user32.GetSystemMetrics(1)
+        elif _plat.system() == "Darwin":
+            import subprocess
+            result = subprocess.run(
+                ["osascript", "-e", 'tell application "Finder" to get bounds of window of desktop'],
+                capture_output=True, text=True, timeout=5
+            )
+            if result.returncode == 0:
+                parts = result.stdout.strip().split(", ")
+                if len(parts) == 4:
+                    return int(parts[2]), int(parts[3])
     except Exception:
         pass
-    # 폴백: 일반적인 해상도
     return 1920, 1080
 
 
