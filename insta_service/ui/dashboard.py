@@ -219,6 +219,10 @@ def _layout(current: str = "dashboard"):
         .q-table .q-table__top, .q-table .q-table__bottom {{
             width: 100%;
         }}
+        /* 사이드바 너비만큼 컨텐츠 영역 밀기 */
+        .q-page-container {{
+            padding-left: 240px !important;
+        }}
         /* Quasar 텍스트 영역 전체 너비 */
         .q-textarea {{ width: 100% !important; }}
         .q-field__control {{ width: 100% !important; }}
@@ -836,20 +840,33 @@ def accounts_page():
             ui.timer(10.0, _check_driver_health)
 
 
+_manual_login_pending = set()  # 수동 로그인 요청 중인 account_id
+
+
 def _auto_check_sessions(reload_fn):
-    """프로그램 시작 후 등록된 모든 계정의 세션을 백그라운드에서 자동 확인한다."""
+    """프로그램 시작 후 등록된 모든 계정의 세션을 단일 스레드에서 순차 확인한다.
+    수동 로그인이 요청된 계정은 건너뛴다."""
     accs = get_accounts()
+    to_check = []
     for acc in accs:
         aid = acc["id"]
-        # 이미 확인했거나 드라이버가 실행 중이면 스킵
         with _state_lock:
             if aid in _state["_session_checked"] or aid in _state["drivers"]:
                 continue
             _state["_session_checked"].add(aid)
             _state["login_status"][aid] = "checking"
+            to_check.append(acc)
 
-        def check_session(account=acc):
+    if not to_check:
+        return
+
+    def _run_checks():
+        import time as _t
+        for account in to_check:
             account_id = account["id"]
+            # 수동 로그인이 요청되었으면 건너뜀
+            if account_id in _manual_login_pending:
+                continue
             driver = None
             try:
                 proxy_data = None
@@ -865,6 +882,9 @@ def _auto_check_sessions(reload_fn):
                 navigate_to_instagram(driver)
                 logged_in = check_login_safe(driver)
 
+                if account_id in _manual_login_pending:
+                    continue
+
                 if logged_in:
                     _set_state("login_status", True, sub_key=account_id)
                     log.info(f"@{account['username']} 세션 유효 (자동 확인)")
@@ -873,21 +893,25 @@ def _auto_check_sessions(reload_fn):
                     log.info(f"@{account['username']} 세션 만료 - 로그인 필요")
             except Exception as e:
                 log.debug(f"@{account['username']} 세션 확인 실패: {e}")
-                _set_state("login_status", False, sub_key=account_id)
+                if account_id not in _manual_login_pending:
+                    _set_state("login_status", False, sub_key=account_id)
             finally:
                 if driver:
                     try:
                         close_driver(driver)
                     except Exception:
                         pass
+                _t.sleep(1)  # Chrome 프로세스 정리 대기
 
-        threading.Thread(target=check_session, daemon=True).start()
+    threading.Thread(target=_run_checks, daemon=True).start()
 
 
 def _start_manual_login(acc: dict, reload_fn):
     """Chrome을 실행하고, 자동 로그인(세션 캐시) 시도 후 실패 시 수동 로그인을 안내한다."""
     aid = acc["id"]
-    ui.notify(f"@{acc['username']} Chrome 실행 중... 로그인 상태를 확인합니다.", type="info")
+    # 자동 세션 체크가 이 계정을 건너뛰도록 표시
+    _manual_login_pending.add(aid)
+    ui.notify(f"@{acc['username']} Chrome 실행 중... 잠시 기다려주세요.", type="info")
 
     def run():
         try:
@@ -946,6 +970,8 @@ def _start_manual_login(acc: dict, reload_fn):
                 ui.notify(f"Chrome 실행 실패: {e}", type="negative")
             except Exception:
                 pass
+        finally:
+            _manual_login_pending.discard(aid)
 
     threading.Thread(target=run, daemon=True).start()
 
