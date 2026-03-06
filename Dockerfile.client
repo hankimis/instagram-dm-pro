@@ -1,0 +1,27 @@
+FROM python:3.12-slim
+
+# Chrome 설치
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    wget gnupg2 unzip fonts-noto-cjk \
+    && wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | gpg --dearmor -o /usr/share/keyrings/google-chrome.gpg \
+    && echo "deb [arch=amd64 signed-by=/usr/share/keyrings/google-chrome.gpg] http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google-chrome.list \
+    && apt-get update && apt-get install -y --no-install-recommends google-chrome-stable \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+COPY requirements_service.txt .
+RUN pip install --no-cache-dir -r requirements_service.txt
+
+COPY insta_service/ ./insta_service/
+COPY config.yml ./config.yml
+COPY proxies.txt ./proxies.txt
+
+# data 디렉터리 (볼륨 마운트 대상)
+RUN mkdir -p /app/data
+
+EXPOSE 8080
+
+ENV PYTHONUNBUFFERED=1
+
+CMD ["python", "-m", "insta_service.main"]

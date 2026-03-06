@@ -1,0 +1,36 @@
+server:
+  host: 0.0.0.0
+  port: 8080
+
+# 어드민 서버 URL (라이선스 인증용)
+# 로컬 테스트: http://localhost:9090/api
+# 운영: https://admin.your-domain.com/api
+admin_server_url: https://insta-service-admin-production.up.railway.app/api
+
+crawling:
+  min_delay: 3.0
+  max_delay: 8.0
+  scroll_min_delay: 1.2
+  scroll_max_delay: 2.5
+  max_scroll_attempts: 50
+  page_load_wait: 4.0
+
+dm:
+  hourly_limit: 20
+  daily_limit_per_account: 80
+  min_delay: 30
+  max_delay: 90
+  reels_min_time: 15
+  reels_max_time: 40
+  reels_chance: 60
+
+chrome:
+  binary_path: /Applications/Google Chrome.app/Contents/MacOS/Google Chrome
+  headless: false
+
+selectors:
+  post_link: 'a[href*="/p/"]'
+  username_primary: a._acan._acao._acat._acaw._aj1-._ap30._a6hd
+  username_fallback1: 'a[role="link"][tabindex="0"]._acan'
+  username_fallback2: 'article header a[href^="/"][role="link"]'
+  close_button: 'svg[aria-label="닫기"]'

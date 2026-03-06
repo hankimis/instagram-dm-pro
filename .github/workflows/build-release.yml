@@ -1,0 +1,62 @@
+name: Build & Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements_service.txt
+          pip install pyinstaller
+
+      - name: Build exe
+        run: |
+          python -m PyInstaller --name "InstagramDMPro" --onedir --windowed --noconfirm --add-data "insta_service;insta_service" --add-data "config.yml;." --add-data "proxies.txt;." --hidden-import nicegui --hidden-import sqlalchemy --hidden-import cryptography --hidden-import engineio.async_drivers.aiohttp --collect-all nicegui start.py
+
+      - name: Zip output
+        run: Compress-Archive -Path dist/InstagramDMPro -DestinationPath dist/InstagramDMPro_Windows.zip
+
+      - name: Upload to Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/InstagramDMPro_Windows.zip
+
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements_service.txt
+          pip install pyinstaller
+
+      - name: Build app
+        run: |
+          python -m PyInstaller --name "InstagramDMPro" --onedir --windowed --noconfirm --add-data "insta_service:insta_service" --add-data "config.yml:." --add-data "proxies.txt:." --hidden-import nicegui --hidden-import sqlalchemy --hidden-import cryptography --hidden-import engineio.async_drivers.aiohttp --collect-all nicegui --osx-bundle-identifier com.instadmpro.app start.py
+
+      - name: Create DMG
+        run: hdiutil create -volname "InstagramDMPro" -srcfolder dist/InstagramDMPro.app -ov -format UDZO dist/InstagramDMPro_macOS.dmg
+
+      - name: Upload to Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/InstagramDMPro_macOS.dmg

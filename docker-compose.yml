@@ -1,0 +1,16 @@
+version: "3.8"
+
+services:
+  insta-service:
+    build:
+      context: .
+      dockerfile: Dockerfile.client
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./data:/app/data
+      - ./config.yml:/app/config.yml
+      - ./proxies.txt:/app/proxies.txt
+    environment:
+      - PYTHONUNBUFFERED=1
+    restart: unless-stopped

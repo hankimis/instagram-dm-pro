@@ -1,0 +1,44 @@
+# 암호화 키
+data/.secret_key
+
+# DB
+data/*.db
+
+# 로그
+data/logs/
+
+# Chrome 프로필
+data/chrome_profiles/
+
+# 백업
+data/backups/
+
+# 가상환경
+venv*/
+__pycache__/
+*.pyc
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build
+build/
+dist/
+*.spec
+
+# Landing
+landing/node_modules/
+landing/.next/
+landing/out/
+
+# Env
+.env*
+!.env.example
+
+# Installer
+installer/
