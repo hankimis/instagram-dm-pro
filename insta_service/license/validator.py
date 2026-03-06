@@ -117,6 +117,7 @@ class LicenseValidator:
                     "machine_id": self._get_machine_id(),
                 },
                 timeout=5,
+                verify=False,  # PyInstaller SSL 인증서 문제 방지
             )
             if resp.status_code == 200:
                 try:
@@ -142,8 +143,8 @@ class LicenseValidator:
                 )
                 # 최신 플랜으로 갱신된 데이터 반환
                 lic = repo.get_license()
-        except requests.ConnectionError:
-            log.info("오프라인 상태 - 로컬 캐시로 라이선스 검증")
+        except Exception:
+            log.info("서버 검증 실패 - 로컬 캐시로 라이선스 검증")
 
         return {"ok": True, **lic}
 
