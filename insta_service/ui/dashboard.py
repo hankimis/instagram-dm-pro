@@ -795,8 +795,8 @@ def accounts_page():
             with session_status_row:
                 ui.button("전체 세션 확인", on_click=_recheck_all_sessions, icon="sync").props("outline dense size=sm")
 
-            # 프로그램 시작 후 첫 접근 시 모든 계정 세션 자동 확인
-            _auto_check_sessions(load_accounts)
+            # 세션 자동 확인은 하지 않음 (로그인 버튼과 lock 충돌 방지)
+            # 사용자가 "전체 세션 확인" 버튼을 클릭하면 실행됨
 
             # 로그인 상태 변경 자동 감지 (2초마다)
             _prev_status = {}
