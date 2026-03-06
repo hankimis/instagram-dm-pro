@@ -33,7 +33,7 @@ jobs:
 
       - name: Build exe
         run: |
-          python -m PyInstaller --name "InstagramDMPro" --onedir --windowed --noconfirm --icon "assets/icon.ico" --add-data "insta_service;insta_service" --add-data "config.yml;." --add-data "proxies.txt;." --add-data "assets;assets" --add-data "assets/root.json;." --hidden-import nicegui --hidden-import sqlalchemy --hidden-import cryptography --hidden-import engineio.async_drivers.aiohttp --hidden-import certifi --hidden-import tufup --hidden-import bsdiff4 --collect-all nicegui --collect-data certifi start.py
+          python -m PyInstaller --name "InstagramDMPro" --onedir --windowed --noconfirm --icon "assets/icon.ico" --add-data "insta_service;insta_service" --add-data "config.yml;." --add-data "proxies.txt;." --add-data "assets;assets" --add-data "assets/root.json;." --hidden-import nicegui --hidden-import sqlalchemy --hidden-import cryptography --hidden-import engineio.async_drivers.aiohttp --hidden-import certifi --hidden-import tufup --hidden-import bsdiff4 --hidden-import webview --collect-all nicegui --collect-all webview --collect-data certifi start.py
 
       - name: Zip output
         run: Compress-Archive -Path dist/InstagramDMPro -DestinationPath dist/InstagramDMPro_Windows.zip
@@ -115,7 +115,7 @@ jobs:
 
       - name: Build app
         run: |
-          python -m PyInstaller --name "InstagramDMPro" --onedir --windowed --noconfirm --icon "assets/icon.icns" --add-data "insta_service:insta_service" --add-data "config.yml:." --add-data "proxies.txt:." --add-data "assets:assets" --add-data "assets/root.json:." --hidden-import nicegui --hidden-import sqlalchemy --hidden-import cryptography --hidden-import engineio.async_drivers.aiohttp --hidden-import certifi --hidden-import tufup --hidden-import bsdiff4 --collect-all nicegui --collect-data certifi --osx-bundle-identifier com.instadmpro.app start.py
+          python -m PyInstaller --name "InstagramDMPro" --onedir --windowed --noconfirm --icon "assets/icon.icns" --add-data "insta_service:insta_service" --add-data "config.yml:." --add-data "proxies.txt:." --add-data "assets:assets" --add-data "assets/root.json:." --hidden-import nicegui --hidden-import sqlalchemy --hidden-import cryptography --hidden-import engineio.async_drivers.aiohttp --hidden-import certifi --hidden-import tufup --hidden-import bsdiff4 --hidden-import webview --collect-all nicegui --collect-all webview --collect-data certifi --osx-bundle-identifier com.instadmpro.app start.py
 
       - name: Create DMG
         run: hdiutil create -volname "InstagramDMPro" -srcfolder dist/InstagramDMPro.app -ov -format UDZO dist/InstagramDMPro_macOS.dmg

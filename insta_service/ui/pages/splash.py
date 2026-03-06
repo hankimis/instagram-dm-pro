@@ -140,7 +140,7 @@ async def index_page():
             except Exception:
                 ui.navigate.to("/activate")
 
-    asyncio.ensure_future(_run())
+    await _run()
 
 
 @ui.page("/activate")
