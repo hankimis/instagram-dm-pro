@@ -2553,8 +2553,8 @@ def _open_user_profile_modal(user_id: int):
 
 
 def _show_update_banner():
-    """GitHub Releases에서 업데이트를 확인하고 배너를 표시한다."""
-    from insta_service.core.updater import check_for_update, download_update, apply_update
+    """업데이트를 확인하고 배너를 표시한다 (tufup 우선, GitHub API 폴백)."""
+    from insta_service.core.updater import check_for_update, download_and_apply
     import platform as _plat
 
     update_info = check_for_update()
@@ -2572,12 +2572,11 @@ def _show_update_banner():
                         "text-blue-900 text-sm font-semibold"
                     )
                     size_mb = update_info.get("size", 0) / 1024 / 1024
-                    ui.label(f"파일 크기: {size_mb:.1f} MB").classes("text-blue-600 text-xs")
+                    if size_mb > 0:
+                        ui.label(f"파일 크기: {size_mb:.1f} MB").classes("text-blue-600 text-xs")
 
-            # 업데이트 버튼 영역
             btn_container = ui.element("div")
 
-        # 프로그레스 바 (숨김 상태)
         progress_container = ui.element("div").classes("w-full mt-3").style("display:none")
         with progress_container:
             progress_label = ui.label("다운로드 중...").classes("text-blue-700 text-xs mb-1")
@@ -2586,7 +2585,7 @@ def _show_update_banner():
         def start_update():
             btn_container.clear()
             with btn_container:
-                ui.label("다운로드 준비 중...").classes("text-blue-600 text-sm")
+                ui.label("업데이트 중...").classes("text-blue-600 text-sm")
             progress_container.style("display:block")
 
             def do_download():
@@ -2601,43 +2600,37 @@ def _show_update_banner():
                                 f"다운로드 중... {mb_done:.1f} / {mb_total:.1f} MB ({pct*100:.0f}%)"
                             )
 
-                    file_path = download_update(
-                        update_info["download_url"],
-                        update_info["name"],
-                        progress_callback=on_progress,
-                    )
+                    success = download_and_apply(update_info, progress_callback=on_progress)
 
-                    progress_label.set_text("다운로드 완료!")
-                    progress_bar.set_value(1.0)
-                    btn_container.clear()
+                    if success:
+                        progress_label.set_text("업데이트 완료!")
+                        progress_bar.set_value(1.0)
+                        btn_container.clear()
 
-                    if _plat.system() == "Windows":
-                        with btn_container:
-                            ui.label("업데이트를 적용하고 앱을 재시작합니다...").classes(
-                                "text-blue-600 text-sm"
-                            )
-                        import time
-                        time.sleep(2)
-                        success = apply_update(file_path)
-                        if success:
-                            # 앱 종료 (배치 스크립트가 재시작)
+                        if _plat.system() == "Windows":
+                            with btn_container:
+                                ui.label("앱을 재시작합니다...").classes(
+                                    "text-blue-600 text-sm"
+                                )
+                            import time
+                            time.sleep(2)
                             os._exit(0)
                         else:
                             with btn_container:
-                                ui.label("업데이트 적용 실패. 수동으로 다운로드해주세요.").classes(
-                                    "text-red-600 text-sm"
-                                )
+                                ui.label(
+                                    "DMG 파일이 열렸습니다. 앱을 교체해주세요."
+                                ).classes("text-blue-600 text-sm")
                     else:
-                        # macOS: DMG 열기
-                        apply_update(file_path)
+                        progress_label.set_text("업데이트 실패")
+                        btn_container.clear()
                         with btn_container:
-                            ui.label(
-                                "DMG 파일이 열렸습니다. 앱을 Applications 폴더로 드래그하여 교체하세요."
-                            ).classes("text-blue-600 text-sm")
+                            ui.button("다시 시도", on_click=lambda: start_update(), icon="refresh").props(
+                                "outline dense size=sm color=blue"
+                            )
 
                 except Exception as e:
-                    log.error(f"업데이트 다운로드 실패: {e}")
-                    progress_label.set_text(f"다운로드 실패: {e}")
+                    log.error(f"업데이트 실패: {e}")
+                    progress_label.set_text(f"실패: {e}")
                     btn_container.clear()
                     with btn_container:
                         ui.button("다시 시도", on_click=lambda: start_update(), icon="refresh").props(
