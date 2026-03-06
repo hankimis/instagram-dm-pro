@@ -84,7 +84,10 @@ def load_config() -> dict:
         # 기본값에 사용자 설정 머지 (1단계 깊이)
         merged = {}
         for section, defaults in _defaults.items():
-            merged[section] = {**defaults, **(user_cfg.get(section) or {})}
+            if isinstance(defaults, dict):
+                merged[section] = {**defaults, **(user_cfg.get(section) or {})}
+            else:
+                merged[section] = user_cfg.get(section, defaults)
         # top-level 키 보존 (admin_server_url 등)
         for key, val in user_cfg.items():
             if key not in merged:
