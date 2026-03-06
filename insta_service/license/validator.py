@@ -10,13 +10,16 @@ from insta_service.db import repository as repo
 from insta_service.utils.logger import log
 
 
+_DEFAULT_ADMIN_URL = "https://insta-service-admin-production.up.railway.app/api"
+
+
 def _load_admin_url() -> str:
     """config.yml에서 어드민 서버 URL을 읽는다."""
     try:
         from insta_service.config import cfg
-        return cfg.get("admin_server_url", "https://insta-service-admin-production.up.railway.app/api")
+        return cfg.get("admin_server_url", _DEFAULT_ADMIN_URL)
     except Exception:
-        return "http://localhost:9090/api"
+        return _DEFAULT_ADMIN_URL
 
 
 ADMIN_SERVER_URL = _load_admin_url()
