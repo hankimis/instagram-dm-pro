@@ -31,7 +31,7 @@ jobs:
 
       - name: Build exe
         run: |
-          python -m PyInstaller --name "InstagramDMPro" --onedir --windowed --noconfirm --icon "assets/icon.ico" --add-data "insta_service;insta_service" --add-data "config.yml;." --add-data "proxies.txt;." --add-data "assets;assets" --hidden-import nicegui --hidden-import sqlalchemy --hidden-import cryptography --hidden-import engineio.async_drivers.aiohttp --collect-all nicegui start.py
+          python -m PyInstaller --name "InstagramDMPro" --onedir --windowed --noconfirm --icon "assets/icon.ico" --add-data "insta_service;insta_service" --add-data "config.yml;." --add-data "proxies.txt;." --add-data "assets;assets" --hidden-import nicegui --hidden-import sqlalchemy --hidden-import cryptography --hidden-import engineio.async_drivers.aiohttp --hidden-import certifi --collect-all nicegui --collect-data certifi start.py
 
       - name: Zip output
         run: Compress-Archive -Path dist/InstagramDMPro -DestinationPath dist/InstagramDMPro_Windows.zip

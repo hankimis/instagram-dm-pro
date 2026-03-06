@@ -1,10 +1,18 @@
 import hashlib
 import json
+import os
+import sys
 import threading
 import time
 from datetime import datetime
 
 import requests
+
+# PyInstaller 번들에서 SSL 인증서 경로를 명시적으로 설정
+if getattr(sys, 'frozen', False):
+    import certifi
+    os.environ.setdefault("SSL_CERT_FILE", certifi.where())
+    os.environ.setdefault("REQUESTS_CA_BUNDLE", certifi.where())
 
 from insta_service.db import repository as repo
 from insta_service.utils.logger import log
@@ -37,20 +45,23 @@ class LicenseValidator:
 
     def activate(self, license_key: str) -> dict:
         """어드민 서버에 라이선스 키를 보내서 활성화한다."""
+        url = f"{self.server_url}/license/activate"
+        log.info(f"라이선스 활성화 시도: URL={url}")
         try:
             resp = requests.post(
-                f"{self.server_url}/license/activate",
+                url,
                 json={
                     "license_key": license_key,
                     "machine_id": self._get_machine_id(),
                 },
-                timeout=10,
+                timeout=15,
+                verify=True,
             )
             try:
                 data = resp.json()
             except (json.JSONDecodeError, ValueError):
-                log.error(f"어드민 서버 응답이 JSON이 아닙니다 (status={resp.status_code}). URL: {self.server_url}")
-                return {"ok": False, "error": f"어드민 서버 연결 실패. URL을 확인해주세요: {self.server_url}"}
+                log.error(f"어드민 서버 응답이 JSON이 아닙니다 (status={resp.status_code}). URL: {url}")
+                return {"ok": False, "error": f"어드민 서버 연결 실패. URL을 확인해주세요: {url}"}
             if resp.status_code == 200 and data.get("ok"):
                 repo.save_license(
                     license_key=license_key,
@@ -70,11 +81,16 @@ class LicenseValidator:
                 return {**data, "ok": True}
             else:
                 return {"ok": False, "error": data.get("error", "라이선스 인증 실패")}
-        except requests.ConnectionError:
+        except requests.exceptions.SSLError as e:
+            # PyInstaller 번들에서 SSL 인증서 누락 시 → SSL 비활성화 후 재시도
+            log.warning(f"SSL 오류 발생, SSL 검증 없이 재시도: {e}")
+            return self._activate_no_ssl(license_key, url)
+        except (requests.ConnectionError, requests.Timeout) as e:
+            log.warning(f"서버 연결 실패: {e}")
             return self._check_local_cache(license_key)
         except Exception as e:
-            log.error(f"라이선스 활성화 오류: {e}")
-            return {"ok": False, "error": str(e)}
+            log.error(f"라이선스 활성화 오류: {type(e).__name__}: {e}")
+            return {"ok": False, "error": f"서버 연결 오류: {type(e).__name__}: {e}"}
 
     def verify(self) -> dict:
         """저장된 라이선스가 유효한지 확인한다."""
@@ -177,6 +193,44 @@ class LicenseValidator:
         self._heartbeat_thread = threading.Thread(target=_heartbeat_loop, daemon=True)
         self._heartbeat_thread.start()
 
+    def _activate_no_ssl(self, license_key: str, url: str) -> dict:
+        """SSL 검증 없이 라이선스 활성화를 재시도한다."""
+        import urllib3
+        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+        try:
+            resp = requests.post(
+                url,
+                json={
+                    "license_key": license_key,
+                    "machine_id": self._get_machine_id(),
+                },
+                timeout=15,
+                verify=False,
+            )
+            data = resp.json()
+            if resp.status_code == 200 and data.get("ok"):
+                repo.save_license(
+                    license_key=license_key,
+                    company_name=data["company_name"],
+                    expires_at=datetime.fromisoformat(data["expires_at"]),
+                    plan=data.get("plan", "basic"),
+                    max_crawl_accounts=data.get("max_crawl_accounts", 1),
+                    max_dm_accounts=data.get("max_dm_accounts", 1),
+                    max_daily_dm=data.get("max_daily_dm", 50),
+                    max_hashtags=data.get("max_hashtags", 5),
+                    can_schedule=data.get("can_schedule", False),
+                    can_analyze=data.get("can_analyze", False),
+                    can_export=data.get("can_export", False),
+                )
+                log.info(f"라이선스 활성화 완료 (SSL 우회): {data['company_name']}")
+                self.start_heartbeat()
+                return {**data, "ok": True}
+            else:
+                return {"ok": False, "error": data.get("error", "라이선스 인증 실패")}
+        except Exception as e:
+            log.error(f"SSL 우회 활성화도 실패: {e}")
+            return self._check_local_cache(license_key)
+
     def _check_local_cache(self, license_key: str) -> dict:
         """오프라인 시 로컬 DB에 저장된 라이선스로 검증한다."""
         lic = repo.get_license()
@@ -186,7 +240,7 @@ class LicenseValidator:
                 if expires > datetime.utcnow():
                     return {"ok": True, **lic}
             return {"ok": False, "error": "라이선스가 만료되었습니다."}
-        return {"ok": False, "error": "오프라인 상태에서 새 라이선스를 활성화할 수 없습니다."}
+        return {"ok": False, "error": f"서버 연결 실패. 인터넷 연결을 확인해주세요.\n서버: {self.server_url}"}
 
     @staticmethod
     def _get_machine_id() -> str:

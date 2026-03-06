@@ -140,6 +140,9 @@ def activate_page():
 
             ui.button("활성화", on_click=do_activate).classes("w-full mt-4").props("unelevated size=lg")
 
+            # 버전 표시
+            ui.label(f"v{APP_VERSION}").classes("text-xs text-gray-300 mt-6 text-center w-full")
+
 
 # =====================================================================
 #  레이아웃: 사이드바 + 컨텐츠
