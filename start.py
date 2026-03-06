@@ -70,9 +70,18 @@ def is_frozen():
     return getattr(sys, 'frozen', False)
 
 
+def _fix_stdio():
+    """PyInstaller --windowed 모드에서 sys.stdout/stderr가 None인 문제 수정."""
+    if sys.stdout is None:
+        sys.stdout = open(os.devnull, "w")
+    if sys.stderr is None:
+        sys.stderr = open(os.devnull, "w")
+
+
 def main():
     # PyInstaller 번들이면 venv 없이 바로 실행
     if is_frozen():
+        _fix_stdio()
         sys.path.insert(0, ROOT)
         from insta_service.main import main as run
         run()
