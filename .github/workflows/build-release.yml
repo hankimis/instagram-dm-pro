@@ -11,6 +11,8 @@ permissions:
 jobs:
   build-windows:
     runs-on: windows-latest
+    env:
+      HAS_TUFUP_KEY: ${{ secrets.TUFUP_PRIVATE_KEY != '' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -43,14 +45,16 @@ jobs:
 
       # --- tufup: 아카이브 생성 + 메타데이터 서명 ---
       - name: Restore tufup signing keys
-        if: ${{ secrets.TUFUP_PRIVATE_KEY != '' }}
+        if: env.HAS_TUFUP_KEY == 'true'
         run: |
-          New-Item -ItemType Directory -Force -Path tufup_work/keystore | Out-Null
-          [System.IO.File]::WriteAllBytes("tufup_work/keystore/instadmpro", [System.Convert]::FromBase64String("${{ secrets.TUFUP_PRIVATE_KEY }}"))
-          [System.IO.File]::WriteAllBytes("tufup_work/keystore/instadmpro.pub", [System.Convert]::FromBase64String("${{ secrets.TUFUP_PUBLIC_KEY }}"))
+          New-Item -ItemType Directory -Force -Path tufup_work\keystore | Out-Null
+          $privBytes = [System.Convert]::FromBase64String("${{ secrets.TUFUP_PRIVATE_KEY }}")
+          [System.IO.File]::WriteAllBytes("$PWD\tufup_work\keystore\instadmpro", $privBytes)
+          $pubBytes = [System.Convert]::FromBase64String("${{ secrets.TUFUP_PUBLIC_KEY }}")
+          [System.IO.File]::WriteAllBytes("$PWD\tufup_work\keystore\instadmpro.pub", $pubBytes)
 
       - name: Checkout gh-pages for tufup metadata
-        if: ${{ secrets.TUFUP_PRIVATE_KEY != '' }}
+        if: env.HAS_TUFUP_KEY == 'true'
         uses: actions/checkout@v4
         with:
           ref: gh-pages
@@ -58,32 +62,36 @@ jobs:
         continue-on-error: true
 
       - name: Create tufup archive and sign metadata
-        if: ${{ secrets.TUFUP_PRIVATE_KEY != '' }}
+        if: env.HAS_TUFUP_KEY == 'true'
         run: |
-          python scripts/tufup_ci.py --bundle-dir dist/InstagramDMPro --version "${{ github.ref_name }}" --keys-dir tufup_work/keystore --metadata-dir gh-pages/metadata --targets-dir tufup_work/targets
+          python scripts/tufup_ci.py --bundle-dir dist\InstagramDMPro --version "${{ github.ref_name }}" --keys-dir tufup_work\keystore --metadata-dir gh-pages\metadata --targets-dir tufup_work\targets
 
       - name: Upload tufup targets to fixed release
-        if: ${{ secrets.TUFUP_PRIVATE_KEY != '' }}
+        if: env.HAS_TUFUP_KEY == 'true'
         run: |
           $version = "${{ github.ref_name }}".TrimStart("v")
-          $archive = "tufup_work/targets/InstagramDMPro-${version}.tar.gz"
+          $archive = "tufup_work\targets\InstagramDMPro-${version}.tar.gz"
           if (Test-Path $archive) {
             gh release upload tufup-targets $archive --clobber
           }
-          Get-ChildItem tufup_work/targets/*.patch -ErrorAction SilentlyContinue | ForEach-Object {
+          Get-ChildItem tufup_work\targets\*.patch -ErrorAction SilentlyContinue | ForEach-Object {
             gh release upload tufup-targets $_.FullName --clobber
           }
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Push updated metadata to gh-pages
-        if: ${{ secrets.TUFUP_PRIVATE_KEY != '' }}
+        if: env.HAS_TUFUP_KEY == 'true'
         run: |
           cd gh-pages
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add metadata/
-          git diff --staged --quiet; if ($LASTEXITCODE -ne 0) { git commit -m "Update tufup metadata for ${{ github.ref_name }}"; git push }
+          $changed = git diff --staged --name-only
+          if ($changed) {
+            git commit -m "Update tufup metadata for ${{ github.ref_name }}"
+            git push
+          }
 
   build-macos:
     runs-on: macos-latest
