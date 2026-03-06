@@ -103,7 +103,15 @@ async def index_page():
             prog_box.set_visibility(False)
             await asyncio.sleep(0.3)
 
-            result = license_validator.verify()
+            loop = asyncio.get_event_loop()
+            try:
+                result = await asyncio.wait_for(
+                    loop.run_in_executor(None, license_validator.verify),
+                    timeout=15.0,
+                )
+            except Exception:
+                result = {"ok": False}
+
             if result.get("ok"):
                 set_state("licensed", True)
                 set_state("license_info", result)
@@ -118,7 +126,11 @@ async def index_page():
             log.error(traceback.format_exc())
             # 에러 발생해도 라이선스 확인으로 진행
             try:
-                result = license_validator.verify()
+                loop = asyncio.get_event_loop()
+                result = await asyncio.wait_for(
+                    loop.run_in_executor(None, license_validator.verify),
+                    timeout=15.0,
+                )
                 if result.get("ok"):
                     set_state("licensed", True)
                     set_state("license_info", result)
