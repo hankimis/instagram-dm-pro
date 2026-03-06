@@ -90,15 +90,100 @@ def _get_plan_limits() -> dict:
 # =====================================================================
 
 @ui.page("/")
-def index_page():
-    result = license_validator.verify()
-    if result.get("ok"):
-        _set_state("licensed", True)
-        _set_state("license_info", result)
-        license_validator.start_heartbeat()
-        ui.navigate.to("/dashboard")
-    else:
-        ui.navigate.to("/activate")
+async def index_page():
+    """스플래시 화면: 업데이트 확인 → 라이선스 확인 → 이동."""
+    import platform as _plat
+    from insta_service.core.updater import check_for_update, download_and_apply
+
+    ui.query("body").style("background: #1e1b4b")
+
+    with ui.column().classes("w-full items-center justify-center min-h-screen"):
+        with ui.card().classes("w-[380px] p-10 shadow-2xl rounded-3xl").style(
+            "background: rgba(255,255,255,0.97)"
+        ):
+            with ui.column().classes("w-full items-center gap-1 mb-6"):
+                ui.icon("camera_alt", size="48px").classes("text-indigo-500")
+                ui.label("Instagram DM Pro").classes("text-2xl font-bold text-gray-800")
+                ui.label(f"v{APP_VERSION}").classes("text-xs text-gray-400")
+
+            status = ui.label("시작 중...").classes("text-sm text-gray-500 text-center w-full")
+            spinner = ui.spinner("dots", size="lg", color="indigo").classes("mx-auto")
+
+            prog_box = ui.column().classes("w-full gap-1 mt-2")
+            with prog_box:
+                prog_detail = ui.label("").classes("text-xs text-gray-400 text-center")
+                prog_bar = ui.linear_progress(value=0).props("color=indigo rounded")
+            prog_box.set_visibility(False)
+
+    async def _run():
+        await asyncio.sleep(0.5)
+
+        # Phase 1: 업데이트 확인 (frozen 빌드에서만)
+        if getattr(sys, "frozen", False):
+            status.text = "업데이트 확인 중..."
+            loop = asyncio.get_event_loop()
+            try:
+                update_info = await asyncio.wait_for(
+                    loop.run_in_executor(None, check_for_update),
+                    timeout=10.0,
+                )
+            except Exception:
+                update_info = None
+
+            # Phase 2: 다운로드
+            if update_info:
+                version = update_info.get("version", "?")
+                status.text = f"v{version} 다운로드 중..."
+                spinner.set_visibility(False)
+                prog_box.set_visibility(True)
+
+                done_event = asyncio.Event()
+                dl_result = {"ok": False}
+
+                def on_progress(downloaded, total):
+                    if total > 0:
+                        pct = downloaded / total
+                        prog_bar.set_value(pct)
+                        mb_d = downloaded / 1024 / 1024
+                        mb_t = total / 1024 / 1024
+                        prog_detail.set_text(f"{mb_d:.1f} / {mb_t:.1f} MB ({pct*100:.0f}%)")
+
+                def do_download():
+                    try:
+                        dl_result["ok"] = download_and_apply(update_info, progress_callback=on_progress)
+                    except Exception as e:
+                        log.error(f"자동 업데이트 실패: {e}")
+                    finally:
+                        loop.call_soon_threadsafe(done_event.set)
+
+                threading.Thread(target=do_download, daemon=True).start()
+                await done_event.wait()
+
+                if dl_result["ok"] and _plat.system() == "Windows":
+                    status.text = "업데이트 적용 중... 앱이 재시작됩니다."
+                    prog_bar.set_value(1.0)
+                    await asyncio.sleep(2)
+                    os._exit(0)
+                elif dl_result["ok"]:
+                    status.text = "DMG가 열렸습니다. 앱을 교체 후 재시작하세요."
+                    await asyncio.sleep(3)
+
+        # Phase 3: 라이선스 확인
+        status.text = "인증 확인 중..."
+        spinner.set_visibility(True)
+        prog_box.set_visibility(False)
+        await asyncio.sleep(0.3)
+
+        result = license_validator.verify()
+        if result.get("ok"):
+            _set_state("licensed", True)
+            _set_state("license_info", result)
+            license_validator.start_heartbeat()
+            ui.navigate.to("/dashboard")
+        else:
+            ui.navigate.to("/activate")
+
+    asyncio.ensure_future(_run())
 
 
 @ui.page("/activate")
@@ -2717,8 +2802,10 @@ def run_dashboard():
     # 종료 훅 등록
     app.on_shutdown(_graceful_shutdown)
 
-    # DM 이미지 정적 파일 서빙
+    # 정적 파일 서빙
     app.add_static_files("/dm_images", str(DM_IMAGES_DIR))
+    from insta_service.config import BASE_DIR as _base
+    app.add_static_files("/assets", str(_base / "assets"))
 
     # PyInstaller frozen 환경에서는 127.0.0.1로 바인딩 (0.0.0.0은 방화벽 문제 가능)
     host = cfg["server"]["host"]
