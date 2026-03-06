@@ -65,7 +65,19 @@ def setup_venv():
     print()
 
 
+def is_frozen():
+    """PyInstaller 번들 안에서 실행 중인지 확인."""
+    return getattr(sys, 'frozen', False)
+
+
 def main():
+    # PyInstaller 번들이면 venv 없이 바로 실행
+    if is_frozen():
+        sys.path.insert(0, ROOT)
+        from insta_service.main import main as run
+        run()
+        return
+
     # venv 밖에서 실행된 경우 → venv 설정 후 venv python으로 재실행
     if not is_running_in_venv():
         setup_venv()
