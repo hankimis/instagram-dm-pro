@@ -85,24 +85,14 @@ def run_dashboard():
     if getattr(sys, 'frozen', False) and host == "0.0.0.0":
         host = "127.0.0.1"
 
-    # pywebview가 있으면 네이티브 윈도우, 없으면 브라우저
-    try:
-        import webview  # noqa: F401
-        use_native = True
-    except ImportError:
-        use_native = False
-
-    mode = "네이티브" if use_native else "브라우저"
-    log.info(f"대시보드 서버 시작 ({mode}): http://{host}:{cfg['server']['port']}")
+    log.info(f"대시보드 서버 시작: http://{host}:{cfg['server']['port']}")
     try:
         ui.run(
             title="Instagram DM Pro",
             host=host,
             port=cfg["server"]["port"],
             reload=False,
-            native=use_native,
-            show=not use_native,
-            window_size=(1280, 800),
+            show=True,
         )
     except Exception as e:
         log.error(f"대시보드 서버 실행 실패: {e}")
